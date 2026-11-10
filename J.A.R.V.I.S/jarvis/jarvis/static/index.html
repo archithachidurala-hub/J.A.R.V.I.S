@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>J.A.R.V.I.S.</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&family=Rajdhani:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #010a12;
+    --panel: rgba(6, 30, 46, 0.55);
+    --cyan: #46e6ff;
+    --cyan-dim: rgba(70, 230, 255, 0.18);
+    --ice: #d4f8ff;
+    --text: #9fd9ea;
+    --muted: #5d92a5;
+    --amber: #ffb347;
+    --display: "Orbitron", "Segoe UI", system-ui, sans-serif;
+    --body: "Rajdhani", "Segoe UI", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { height: 100%; }
+  body {
+    background:
+      radial-gradient(ellipse at 50% 45%, rgba(14, 90, 130, 0.35), transparent 60%),
+      repeating-linear-gradient(0deg, rgba(70, 230, 255, 0.035) 0 1px, transparent 1px 44px),
+      repeating-linear-gradient(90deg, rgba(70, 230, 255, 0.035) 0 1px, transparent 1px 44px),
+      var(--bg);
+    color: var(--text);
+    font-family: var(--body);
+    font-size: 17px;
+    font-weight: 500;
+    overflow: hidden;
+  }
+  body::after {
+    content: ""; position: fixed; inset: 0; pointer-events: none;
+    background: radial-gradient(ellipse at center, transparent 55%, rgba(0, 0, 0, 0.65));
+  }
+  button, input { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+
+  /* ---------- layout ---------- */
+  .hud {
+    position: relative; z-index: 1; height: 100vh; padding: 18px 22px 22px;
+    display: grid; grid-template-columns: 300px 1fr 340px; grid-template-rows: auto 1fr; gap: 18px;
+  }
+  header {
+    grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 1px solid var(--cyan-dim); padding-bottom: 12px;
+  }
+  .brand { font-family: var(--display); font-weight: 700; font-size: 22px; letter-spacing: 0.32em; color: var(--ice); text-shadow: 0 0 14px rgba(70, 230, 255, 0.6); }
+  .brand small { display: block; font-family: var(--body); font-weight: 500; font-size: 14px; letter-spacing: 0.06em; color: var(--muted); text-shadow: none; margin-top: 2px; }
+  .clock { text-align: center; font-family: var(--display); font-size: 26px; color: var(--ice); letter-spacing: 0.1em; }
+  .clock small { display: block; font-family: var(--body); font-size: 15px; color: var(--muted); letter-spacing: 0.04em; margin-top: 2px; }
+  .link { text-align: right; font-size: 15px; color: var(--muted); line-height: 1.35; }
+  .link b { color: var(--cyan); font-weight: 600; }
+  .link .off { color: var(--amber); }
+
+  .panel {
+    position: relative; padding: 18px; min-height: 0;
+    background: linear-gradient(180deg, var(--panel), rgba(3, 14, 24, 0.55));
+    border: 1px solid rgba(70, 230, 255, 0.14); backdrop-filter: blur(3px);
+  }
+  .panel::before, .panel::after { content: ""; position: absolute; width: 14px; height: 14px; border: 2px solid var(--cyan); pointer-events: none; }
+  .panel::before { top: -1px; left: -1px; border-right: 0; border-bottom: 0; }
+  .panel::after { bottom: -1px; right: -1px; border-left: 0; border-top: 0; }
+  .panel h2 { font-family: var(--display); font-weight: 500; font-size: 14px; letter-spacing: 0.18em; color: var(--cyan); margin-bottom: 14px; }
+
+  /* ---------- telemetry ---------- */
+  .left { display: flex; flex-direction: column; gap: 16px; }
+  .gauges { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 10px; }
+  .gauge { text-align: center; }
+  .gauge svg { width: 100%; max-width: 112px; display: block; margin: 0 auto; }
+  .gauge .track { fill: none; stroke: rgba(70, 230, 255, 0.12); stroke-width: 6; }
+  .gauge .bar { fill: none; stroke: var(--cyan); stroke-width: 6; stroke-linecap: butt; stroke-dasharray: 263.9; stroke-dashoffset: 263.9; transform: rotate(-90deg); transform-origin: 50% 50%; transition: stroke-dashoffset 0.8s ease, stroke 0.3s; filter: drop-shadow(0 0 4px rgba(70, 230, 255, 0.7)); }
+  .gauge.warn .bar { stroke: var(--amber); filter: drop-shadow(0 0 4px rgba(255, 179, 71, 0.7)); }
+  .gauge text { fill: var(--ice); font-family: var(--display); font-size: 20px; text-anchor: middle; dominant-baseline: central; }
+  .gauge span { display: block; font-size: 15px; color: var(--muted); margin-top: 2px; }
+  .rows { display: grid; gap: 9px; }
+  .row { display: flex; justify-content: space-between; border-bottom: 1px dashed rgba(70, 230, 255, 0.14); padding-bottom: 5px; }
+  .row span:first-child { color: var(--muted); }
+  .row span:last-child { color: var(--ice); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+  /* ---------- center / reactor ---------- */
+  .center { display: flex; flex-direction: column; min-height: 0; align-items: center; }
+  .stage { position: relative; flex: 1; min-height: 0; width: 100%; display: grid; place-items: center; }
+  canvas { width: min(100%, 100vh - 330px); aspect-ratio: 1; max-height: 100%; }
+  .state { position: absolute; bottom: 4px; left: 50%; transform: translateX(-50%); font-family: var(--display); font-size: 13px; letter-spacing: 0.3em; color: var(--cyan); white-space: nowrap; }
+  .subtitle { width: min(760px, 100%); min-height: 3.6em; text-align: center; font-size: 22px; line-height: 1.3; color: var(--ice); margin: 12px 0 14px; text-shadow: 0 0 10px rgba(70, 230, 255, 0.35); }
+  .input-bar { width: min(760px, 100%); display: flex; gap: 10px; align-items: stretch; }
+  .input-bar input {
+    flex: 1; min-width: 0; background: rgba(2, 18, 30, 0.8); border: 1px solid rgba(70, 230, 255, 0.35);
+    padding: 12px 16px; font-size: 18px; color: var(--ice);
+  }
+  .input-bar input::placeholder { color: var(--muted); }
+  .input-bar input:focus { border-color: var(--cyan); box-shadow: 0 0 16px rgba(70, 230, 255, 0.25); outline: none; }
+  .btn {
+    background: rgba(70, 230, 255, 0.08); border: 1px solid rgba(70, 230, 255, 0.45); color: var(--cyan);
+    padding: 0 18px; cursor: pointer; font-weight: 600; letter-spacing: 0.04em; transition: background 0.15s, box-shadow 0.15s;
+  }
+  .btn:hover { background: rgba(70, 230, 255, 0.18); box-shadow: 0 0 14px rgba(70, 230, 255, 0.3); }
+  .btn svg { width: 22px; height: 22px; display: block; fill: currentColor; }
+  .btn.active { background: var(--cyan); color: #00222d; box-shadow: 0 0 20px rgba(70, 230, 255, 0.6); }
+  .btn:disabled { opacity: 0.35; cursor: not-allowed; box-shadow: none; }
+  .toggles { display: flex; gap: 18px; margin-top: 10px; font-size: 15px; color: var(--muted); }
+  .toggles label { display: flex; gap: 7px; align-items: center; cursor: pointer; }
+  .toggles input { accent-color: var(--cyan); width: 15px; height: 15px; }
+
+  /* ---------- log ---------- */
+  .right { display: flex; flex-direction: column; gap: 14px; }
+  .log { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding-right: 6px; scrollbar-width: thin; scrollbar-color: var(--cyan-dim) transparent; }
+  .msg { border-left: 2px solid var(--cyan-dim); padding-left: 10px; }
+  .msg.assistant { border-left-color: var(--cyan); }
+  .msg .who { font-size: 14px; color: var(--muted); }
+  .msg.assistant .who { color: var(--cyan); }
+  .msg p { color: var(--ice); line-height: 1.3; margin-top: 2px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip { background: transparent; border: 1px solid rgba(70, 230, 255, 0.3); color: var(--text); padding: 5px 11px; font-size: 15px; cursor: pointer; transition: border-color 0.15s, color 0.15s; }
+  .chip:hover { border-color: var(--cyan); color: var(--ice); }
+
+  /* ---------- boot screen ---------- */
+  .boot { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; background: var(--bg); transition: opacity 0.7s; }
+  .boot.hide { opacity: 0; pointer-events: none; }
+  .boot-inner { text-align: center; }
+  .boot-inner h1 { font-family: var(--display); font-weight: 700; font-size: clamp(30px, 6vw, 60px); letter-spacing: 0.35em; color: var(--ice); text-shadow: 0 0 24px rgba(70, 230, 255, 0.7); padding-left: 0.35em; }
+  .boot-inner p { margin: 14px 0 30px; color: var(--muted); font-size: 18px; }
+  .boot-inner .btn { padding: 14px 34px; font-size: 18px; font-family: var(--display); letter-spacing: 0.2em; }
+
+  /* ---------- responsive ---------- */
+  @media (max-width: 1050px) {
+    body { overflow: auto; }
+    .hud { height: auto; grid-template-columns: 1fr; }
+    .center { order: -1; }
+    .stage { min-height: 360px; }
+    canvas { width: min(100%, 460px); }
+    .log { max-height: 320px; }
+    header { flex-wrap: wrap; gap: 10px; }
+    .clock { text-align: left; }
+  }
+  @media (prefers-reduced-motion: reduce) { .gauge .bar { transition: none; } .boot { transition: none; } }
+</style>
+</head>
+<body>
+
+<div class="boot" id="boot">
+  <div class="boot-inner">
+    <h1>J.A.R.V.I.S.</h1>
+    <p>Just A Rather Very Intelligent System</p>
+    <button class="btn" id="initBtn">INITIALIZE</button>
+  </div>
+</div>
+
+<div class="hud">
+  <header>
+    <div class="brand">J.A.R.V.I.S.<small id="hostInfo">Connecting…</small></div>
+    <div class="clock"><span id="time">--:--:--</span><small id="date"></small></div>
+    <div class="link">AI core: <b id="aiState">checking</b><br><span id="uptime">Uptime --</span></div>
+  </header>
+
+  <aside class="panel left" aria-label="System telemetry">
+    <h2>SYSTEM TELEMETRY</h2>
+    <div class="gauges">
+      <div class="gauge" id="g-cpu"><svg viewBox="0 0 100 100"><circle class="track" cx="50" cy="50" r="42"/><circle class="bar" cx="50" cy="50" r="42"/><text x="50" y="50">0</text></svg><span>CPU</span></div>
+      <div class="gauge" id="g-ram"><svg viewBox="0 0 100 100"><circle class="track" cx="50" cy="50" r="42"/><circle class="bar" cx="50" cy="50" r="42"/><text x="50" y="50">0</text></svg><span>Memory</span></div>
+      <div class="gauge" id="g-disk"><svg viewBox="0 0 100 100"><circle class="track" cx="50" cy="50" r="42"/><circle class="bar" cx="50" cy="50" r="42"/><text x="50" y="50">0</text></svg><span>Disk</span></div>
+      <div class="gauge" id="g-bat"><svg viewBox="0 0 100 100"><circle class="track" cx="50" cy="50" r="42"/><circle class="bar" cx="50" cy="50" r="42"/><text x="50" y="50">--</text></svg><span id="batLabel">Battery</span></div>
+    </div>
+    <div class="rows" style="margin-top:20px">
+      <div class="row"><span>Download</span><span id="netDown">0 KB/s</span></div>
+      <div class="row"><span>Upload</span><span id="netUp">0 KB/s</span></div>
+      <div class="row"><span>System</span><span id="osInfo">--</span></div>
+    </div>
+  </aside>
+
+  <main class="center">
+    <div class="stage">
+      <canvas id="reactor" aria-label="Arc reactor visualiser"></canvas>
+      <div class="state" id="stateLabel">STANDING BY</div>
+    </div>
+    <div class="subtitle" id="subtitle" aria-live="polite"></div>
+    <div class="input-bar">
+      <button class="btn" id="micBtn" title="Toggle voice input" aria-label="Toggle voice input">
+        <svg viewBox="0 0 24 24"><path d="M12 15a3.5 3.5 0 0 0 3.5-3.5v-6a3.5 3.5 0 0 0-7 0v6A3.5 3.5 0 0 0 12 15Zm6-3.5a1 1 0 1 0-2 0 4 4 0 0 1-8 0 1 1 0 1 0-2 0 6 6 0 0 0 5 5.91V20H9a1 1 0 1 0 0 2h6a1 1 0 1 0 0-2h-2v-2.59A6 6 0 0 0 18 11.5Z"/></svg>
+      </button>
+      <input id="textInput" type="text" placeholder="Ask Jarvis anything, or press the mic…" autocomplete="off">
+      <button class="btn" id="sendBtn">SEND</button>
+    </div>
+    <div class="toggles">
+      <label><input type="checkbox" id="speakToggle" checked> Voice replies</label>
+      <label><input type="checkbox" id="wakeToggle"> Only respond to “Jarvis”</label>
+    </div>
+  </main>
+
+  <aside class="panel right" aria-label="Conversation">
+    <h2>COMMUNICATION LOG</h2>
+    <div class="log" id="log"></div>
+    <div class="chips" id="chips">
+      <button class="chip">System status</button>
+      <button class="chip">What time is it?</button>
+      <button class="chip">Open YouTube</button>
+      <button class="chip">Tell me a joke</button>
+    </div>
+  </aside>
+</div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const chatHistory = [];
+let state = "idle";            // idle | listening | thinking | speaking
+let listening = false, speaking = false, busy = false;
+
+/* ====================================================================
+   Reactor canvas
+   ==================================================================== */
+const cv = $("#reactor"), ctx = cv.getContext("2d");
+const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const motion = reduceMotion ? 0.25 : 1;
+let dpr = 1, size = 600, spin = 0, level = 0, lastMs = 0;
+
+function resize() {
+  dpr = window.devicePixelRatio || 1;
+  size = cv.clientWidth || 600;
+  cv.width = cv.height = Math.round(size * dpr);
+}
+addEventListener("resize", resize);
+
+function ring(r, lw, a) {
+  ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2);
+  ctx.lineWidth = lw; ctx.strokeStyle = `rgba(70,230,255,${a})`; ctx.stroke();
+}
+function arcs(r, lw, n, gap, a, rot) {
+  const step = (Math.PI * 2) / n;
+  ctx.lineWidth = lw; ctx.strokeStyle = `rgba(70,230,255,${a})`;
+  for (let i = 0; i < n; i++) {
+    const a0 = rot + i * step;
+    ctx.beginPath(); ctx.arc(0, 0, r, a0, a0 + step * (1 - gap)); ctx.stroke();
+  }
+}
+function ticks(r, len, n, a, rot, every) {
+  ctx.strokeStyle = `rgba(70,230,255,${a})`;
+  for (let i = 0; i < n; i++) {
+    const ang = rot + (i / n) * Math.PI * 2, major = i % every === 0, l = major ? len * 1.9 : len;
+    ctx.lineWidth = major ? 2 : 1;
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(ang) * r, Math.sin(ang) * r);
+    ctx.lineTo(Math.cos(ang) * (r - l), Math.sin(ang) * (r - l));
+    ctx.stroke();
+  }
+}
+
+function frame(ms) {
+  const dt = Math.min((ms - lastMs) / 1000 || 0.016, 0.05); lastMs = ms;
+  const t = ms / 1000;
+  spin += dt * motion * (state === "thinking" ? 2.6 : 1);
+
+  let target = 0.08 + 0.04 * Math.sin(t * 1.4);
+  if (state === "listening") target = 0.28 + 0.14 * Math.sin(t * 5) * Math.sin(t * 2.1);
+  if (state === "thinking") target = 0.4;
+  if (state === "speaking") target = 0.55 + 0.35 * Math.sin(t * 9) * Math.sin(t * 3.7);
+  level += (target - level) * 0.09;
+
+  const R = size * 0.46;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, size, size);
+  ctx.translate(size / 2, size / 2);
+  ctx.lineCap = "butt";
+
+  // core glow
+  const g = ctx.createRadialGradient(0, 0, 0, 0, 0, R * 0.75);
+  g.addColorStop(0, `rgba(140,245,255,${0.22 + level * 0.45})`);
+  g.addColorStop(0.45, `rgba(40,170,230,${0.08 + level * 0.14})`);
+  g.addColorStop(1, "rgba(0,60,100,0)");
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, R * 0.75, 0, Math.PI * 2); ctx.fill();
+
+  ctx.shadowColor = "rgba(70,230,255,0.9)"; ctx.shadowBlur = 8 + level * 14;
+
+  ring(R, 1.5, 0.55);
+  ticks(R * 0.975, R * 0.03, 120, 0.5, spin * 0.08, 5);
+  ring(R * 0.88, 1, 0.25);
+  arcs(R * 0.83, 7, 3, 0.35, 0.75, -spin * 0.35);
+  arcs(R * 0.83, 2, 36, 0.4, 0.35, spin * 0.2);
+  ring(R * 0.72, 1, 0.3);
+
+  // dotted ring
+  ctx.fillStyle = "rgba(70,230,255,0.7)";
+  for (let i = 0; i < 60; i++) {
+    const ang = (i / 60) * Math.PI * 2 + spin * 0.15;
+    ctx.beginPath(); ctx.arc(Math.cos(ang) * R * 0.67, Math.sin(ang) * R * 0.67, 1.6, 0, Math.PI * 2); ctx.fill();
+  }
+
+  arcs(R * 0.58, 11, 8, 0.45, 0.85, spin * 0.55);
+  arcs(R * 0.5, 2, 4, 0.2, 0.5, -spin * 0.9);
+
+  // radial level bars
+  ctx.lineWidth = 3;
+  for (let i = 0; i < 72; i++) {
+    const ang = (i / 72) * Math.PI * 2;
+    const n = 0.5 + 0.5 * Math.sin(i * 2.3 + spin * 7) * Math.cos(i * 0.9 - spin * 3);
+    const len = R * (0.012 + level * 0.12 * n);
+    const r0 = R * 0.41;
+    ctx.strokeStyle = `rgba(150,245,255,${0.4 + level * 0.5})`;
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(ang) * r0, Math.sin(ang) * r0);
+    ctx.lineTo(Math.cos(ang) * (r0 + len), Math.sin(ang) * (r0 + len));
+    ctx.stroke();
+  }
+
+  ring(R * 0.37, 2, 0.8);
+
+  // reactor triangle
+  ctx.save(); ctx.rotate(spin * 0.25);
+  ctx.beginPath();
+  for (let i = 0; i < 3; i++) {
+    const ang = (i / 3) * Math.PI * 2 - Math.PI / 2;
+    ctx[i ? "lineTo" : "moveTo"](Math.cos(ang) * R * 0.25, Math.sin(ang) * R * 0.25);
+  }
+  ctx.closePath();
+  ctx.fillStyle = `rgba(70,230,255,${0.08 + level * 0.25})`; ctx.fill();
+  ctx.lineWidth = 2; ctx.strokeStyle = "rgba(180,250,255,0.9)"; ctx.stroke();
+  ctx.restore();
+
+  // center
+  ctx.shadowBlur = 18 + level * 30;
+  ctx.fillStyle = "rgba(225,252,255,0.95)";
+  ctx.beginPath(); ctx.arc(0, 0, R * (0.045 + level * 0.025), 0, Math.PI * 2); ctx.fill();
+  ctx.shadowBlur = 0;
+
+  requestAnimationFrame(frame);
+}
+
+/* ====================================================================
+   State, subtitle, log
+   ==================================================================== */
+const LABELS = { idle: "STANDING BY", listening: "LISTENING", thinking: "PROCESSING", speaking: "SPEAKING" };
+function setState(s) { state = s; $("#stateLabel").textContent = LABELS[s]; }
+function restState() { setState(listening ? "listening" : "idle"); }
+
+let typeTimer;
+function showSubtitle(text) {
+  clearInterval(typeTimer);
+  const el = $("#subtitle"); el.textContent = "";
+  let i = 0;
+  typeTimer = setInterval(() => {
+    el.textContent = text.slice(0, ++i);
+    if (i >= text.length) clearInterval(typeTimer);
+  }, 16);
+}
+
+function addLog(role, text) {
+  const d = document.createElement("div"); d.className = "msg " + role;
+  const who = document.createElement("div"); who.className = "who";
+  const stamp = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  who.textContent = (role === "user" ? "You" : "Jarvis") + "  " + stamp;
+  const p = document.createElement("p"); p.textContent = text;
+  d.append(who, p);
+  $("#log").append(d);
+  $("#log").scrollTop = $("#log").scrollHeight;
+}
+
+/* ====================================================================
+   Speech output
+   ==================================================================== */
+let voices = [];
+function loadVoices() { voices = speechSynthesis.getVoices(); }
+if ("speechSynthesis" in window) { loadVoices(); speechSynthesis.onvoiceschanged = loadVoices; }
+
+function pickVoice() {
+  const by = (fn) => voices.find(fn);
+  return (
+    by((v) => /daniel|google uk english male|ryan|george/i.test(v.name) && /en-GB/i.test(v.lang)) ||
+    by((v) => /en-GB/i.test(v.lang) && /male/i.test(v.name)) ||
+    by((v) => /en-GB/i.test(v.lang)) ||
+    by((v) => /^en/i.test(v.lang)) || null
+  );
+}
+
+function speak(text) {
+  if (!$("#speakToggle").checked || !("speechSynthesis" in window)) { restState(); return; }
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  const v = pickVoice(); if (v) u.voice = v;
+  u.rate = 1.0; u.pitch = 0.85;
+  u.onstart = () => { speaking = true; setState("speaking"); };
+  u.onend = u.onerror = () => { speaking = false; restState(); };
+  speechSynthesis.speak(u);
+}
+
+/* ====================================================================
+   Chat
+   ==================================================================== */
+async function send(text) {
+  text = text.trim();
+  if (!text || busy) return;
+  busy = true;
+  speechSynthesis.cancel(); speaking = false;
+  addLog("user", text);
+  chatHistory.push({ role: "user", content: text });
+  setState("thinking"); showSubtitle("…");
+
+  let reply;
+  try {
+    const r = await fetch("/api/chat", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: text, history: chatHistory.slice(-11, -1) }),
+    });
+    reply = (await r.json()).reply || "I received an empty response.";
+  } catch (e) {
+    reply = "The connection to my server has been lost. Please check that app.py is still running.";
+  }
+  chatHistory.push({ role: "assistant", content: reply });
+  addLog("assistant", reply);
+  showSubtitle(reply);
+  busy = false;
+  restState();
+  speak(reply);
+}
+
+$("#sendBtn").onclick = () => { const i = $("#textInput"); send(i.value); i.value = ""; };
+$("#textInput").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") { send(e.target.value); e.target.value = ""; }
+});
+document.querySelectorAll(".chip").forEach((c) => (c.onclick = () => send(c.textContent)));
+
+/* ====================================================================
+   Speech input (Chrome / Edge)
+   ==================================================================== */
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let rec = null;
+if (!SR) {
+  $("#micBtn").disabled = true;
+  $("#micBtn").title = "Voice input needs Chrome or Edge";
+} else {
+  rec = new SR();
+  rec.continuous = true; rec.interimResults = true; rec.lang = "en-US";
+
+  rec.onresult = (e) => {
+    let interim = "";
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const tr = e.results[i][0].transcript;
+      if (e.results[i].isFinal) handleVoice(tr); else interim += tr;
+    }
+    if (interim && !speaking && !busy) { clearInterval(typeTimer); $("#subtitle").textContent = interim; }
+  };
+  rec.onend = () => { if (listening) setTimeout(() => { try { rec.start(); } catch (_) {} }, 250); };
+  rec.onerror = (e) => {
+    if (e.error === "not-allowed" || e.error === "service-not-allowed") {
+      stopListening();
+      showSubtitle("Microphone access was blocked. Allow it in the address bar, then press the mic again.");
+    }
+  };
+}
+
+function handleVoice(raw) {
+  if (speaking || busy) return;
+  let text = raw.trim();
+  if ($("#wakeToggle").checked) {
+    if (!/jarvis/i.test(text)) return;
+    text = text.replace(/^.*?jarvis[,.!]?\s*/i, "");
+    if (!text) text = "hello";
+  }
+  send(text);
+}
+function startListening() { if (!rec) return; listening = true; try { rec.start(); } catch (_) {} $("#micBtn").classList.add("active"); restState(); }
+function stopListening() { listening = false; try { rec && rec.stop(); } catch (_) {} $("#micBtn").classList.remove("active"); restState(); }
+$("#micBtn").onclick = () => (listening ? stopListening() : startListening());
+
+/* ====================================================================
+   Telemetry
+   ==================================================================== */
+const C = 263.9;
+function setGauge(id, pct, label) {
+  const g = $("#" + id), p = Math.max(0, Math.min(100, pct || 0));
+  g.querySelector(".bar").style.strokeDashoffset = C * (1 - p / 100);
+  g.querySelector("text").textContent = label ?? p;
+  g.classList.toggle("warn", id !== "g-bat" ? p >= 85 : p <= 20);
+}
+const rate = (b) => (b > 1048576 ? (b / 1048576).toFixed(1) + " MB/s" : Math.round(b / 1024) + " KB/s");
+function fmtUptime(s) {
+  const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60);
+  return `Uptime ${d ? d + "d " : ""}${h}h ${m}m`;
+}
+async function pollStats() {
+  try {
+    const s = await (await fetch("/api/stats")).json();
+    setGauge("g-cpu", s.cpu); setGauge("g-ram", s.ram); setGauge("g-disk", s.disk);
+    if (s.battery) { setGauge("g-bat", s.battery.percent); $("#batLabel").textContent = s.battery.plugged ? "Battery (charging)" : "Battery"; }
+    else { setGauge("g-bat", 100, "AC"); $("#batLabel").textContent = "Power"; }
+    $("#netDown").textContent = rate(s.net_down); $("#netUp").textContent = rate(s.net_up);
+    $("#osInfo").textContent = s.os; $("#hostInfo").textContent = s.host;
+    $("#uptime").textContent = fmtUptime(s.uptime);
+    const ai = $("#aiState"); ai.textContent = s.ai ? "online" : "offline"; ai.className = s.ai ? "" : "off";
+  } catch (_) { $("#hostInfo").textContent = "Server unreachable"; }
+}
+
+function tick() {
+  const n = new Date();
+  $("#time").textContent = n.toLocaleTimeString([], { hour12: false });
+  $("#date").textContent = n.toLocaleDateString([], { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+}
+
+/* ====================================================================
+   Boot
+   ==================================================================== */
+$("#initBtn").onclick = () => {
+  $("#boot").classList.add("hide");
+  resize(); requestAnimationFrame(frame);
+  pollStats(); setInterval(pollStats, 2000);
+  tick(); setInterval(tick, 1000);
+  const h = new Date().getHours();
+  const hello = (h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening") +
+    ". All systems are online. How may I assist you?";
+  addLog("assistant", hello); showSubtitle(hello); speak(hello);
+  $("#textInput").focus();
+};
+resize();
+</script>
+</body>
+</html>
